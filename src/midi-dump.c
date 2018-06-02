@@ -7,12 +7,12 @@
 
 #include <midi-parser.h>
 
-void usage(const char *prog)
+static void usage(const char *prog)
 {
   printf("usage: %s <file.midi>\n", prog);
 }
 
-void parse_and_dump(struct midi_parser *parser)
+static void parse_and_dump(struct midi_parser *parser)
 {
   enum midi_status status;
 
@@ -72,7 +72,7 @@ void parse_and_dump(struct midi_parser *parser)
   }
 }
 
-int parse_file(const char *path)
+static int parse_file(const char *path)
 {
   struct stat st;
 
