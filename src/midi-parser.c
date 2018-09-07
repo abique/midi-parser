@@ -171,6 +171,10 @@ midi_parse_meta_event(struct midi_parser *parser)
   int32_t offset   = 2;
   parser->meta.length = midi_parse_variable_length(parser, &offset);
 
+  // length should never be negative
+  if (parser->meta.length < 0)
+    return MIDI_PARSER_ERROR;
+
   // check buffer size
   if (parser->size < offset + parser->meta.length)
     return MIDI_PARSER_EOB;
