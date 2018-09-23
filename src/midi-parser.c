@@ -131,6 +131,15 @@ midi_parse_vtime(struct midi_parser *parser)
     uint8_t b = parser->in[nbytes - 1];
     parser->vtime = (parser->vtime << 7) | (b & 0x7f);
 
+    // The largest value allowed within a MIDI file is 0x0FFFFFFF. A lot of
+    // leading bytes with the highest bit set might overflow the nbytes counter
+    // and create an endless loop.
+    // If one would use 0x80 bytes for padding the check on parser->vtime would
+    // not terminate the endless loop. Since the maximum value can be encoded
+    // in 5 bytes or less, we can assume bad input if more bytes were used.
+    if (parser->vtime > 0x0fffffff || nbytes > 5)
+      return false;
+
     cont = b & 0x80;
   }
 
