@@ -46,7 +46,7 @@ static void parse_and_dump(struct midi_parser *parser)
 
     case MIDI_PARSER_TRACK_MIDI:
       puts("track-midi");
-      printf("  time: %d\n", parser->vtime);
+      printf("  time: %ld\n", parser->vtime);
       printf("  status: %d [%s]\n", parser->midi.status, midi_status_name(parser->midi.status));
       printf("  channel: %d\n", parser->midi.channel);
       printf("  param1: %d\n", parser->midi.param1);
@@ -55,14 +55,14 @@ static void parse_and_dump(struct midi_parser *parser)
 
     case MIDI_PARSER_TRACK_META:
       printf("track-meta\n");
-      printf("  time: %d\n", parser->vtime);
+      printf("  time: %ld\n", parser->vtime);
       printf("  type: %d [%s]\n", parser->meta.type, midi_meta_name(parser->meta.type));
       printf("  length: %d\n", parser->meta.length);
       break;
 
     case MIDI_PARSER_TRACK_SYSEX:
       puts("track-sysex");
-      printf("  time: %d\n", parser->vtime);
+      printf("  time: %ld\n", parser->vtime);
       break;
 
     default:

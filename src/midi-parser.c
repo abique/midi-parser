@@ -125,11 +125,20 @@ midi_parse_vtime(struct midi_parser *parser)
   while (cont) {
     ++nbytes;
 
-    if (parser->size < nbytes)
+    if (parser->size < nbytes || parser->track.size < nbytes)
       return false;
 
     uint8_t b = parser->in[nbytes - 1];
     parser->vtime = (parser->vtime << 7) | (b & 0x7f);
+
+    // The largest value allowed within a MIDI file is 0x0FFFFFFF. A lot of
+    // leading bytes with the highest bit set might overflow the nbytes counter
+    // and create an endless loop.
+    // If one would use 0x80 bytes for padding the check on parser->vtime would
+    // not terminate the endless loop. Since the maximum value can be encoded
+    // in 5 bytes or less, we can assume bad input if more bytes were used.
+    if (parser->vtime > 0x0fffffff || nbytes > 5)
+      return false;
 
     cont = b & 0x80;
   }
@@ -165,19 +174,19 @@ midi_parse_meta_event(struct midi_parser *parser)
   assert(parser->in[0] == 0xff);
 
   if (parser->size < 2)
-    return MIDI_PARSER_EOB;
+    return MIDI_PARSER_ERROR;
 
   parser->meta.type = parser->in[1];
   int32_t offset   = 2;
   parser->meta.length = midi_parse_variable_length(parser, &offset);
 
-  // length should never be negative
-  if (parser->meta.length < 0)
+  // length should never be negative or more than the remaining size
+  if (parser->meta.length < 0 || parser->meta.length > parser->size)
     return MIDI_PARSER_ERROR;
 
   // check buffer size
-  if (parser->size < offset + parser->meta.length)
-    return MIDI_PARSER_EOB;
+  if (parser->size < offset || parser->size - offset < parser->meta.length)
+    return MIDI_PARSER_ERROR;
 
   offset += parser->meta.length;
   parser->in += offset;
@@ -191,6 +200,11 @@ midi_parse_event(struct midi_parser *parser)
 {
   if (!midi_parse_vtime(parser))
     return MIDI_PARSER_EOB;
+
+  // Make sure the parser has not consumed the entire file or track, else
+  // `parser-in[0]` might access heap-memory after the allocated buffer.
+  if (parser->size <= 0 || parser->track.size <= 0)
+    return MIDI_PARSER_ERROR;
 
   if (parser->in[0] < 0xf0)
     return midi_parse_channel_event(parser);
