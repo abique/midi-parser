@@ -201,6 +201,11 @@ midi_parse_event(struct midi_parser *parser)
   if (!midi_parse_vtime(parser))
     return MIDI_PARSER_EOB;
 
+  // Make sure the parser has not consumed the entire file or track, else
+  // `parser-in[0]` might access heap-memory after the allocated buffer.
+  if (parser->size <= 0 || parser->track.size <= 0)
+    return MIDI_PARSER_ERROR;
+
   if (parser->in[0] < 0xf0)
     return midi_parse_channel_event(parser);
   if (parser->in[0] == 0xff)
