@@ -125,7 +125,7 @@ midi_parse_vtime(struct midi_parser *parser)
   while (cont) {
     ++nbytes;
 
-    if (parser->size < nbytes)
+    if (parser->size < nbytes || parser->track.size < nbytes)
       return false;
 
     uint8_t b = parser->in[nbytes - 1];
