@@ -172,13 +172,16 @@ midi_parse_channel_event(struct midi_parser *parser)
     if (parser->buffered_status == 0)
       return MIDI_PARSER_EOB;
     parser->midi.status  = parser->buffered_status;
+    int datalen = midi_event_datalen(parser->midi.status);
+    if (parser->size < datalen)
+      return MIDI_PARSER_EOB;
     parser->midi.channel = parser->buffered_channel;
-    parser->midi.param1  = parser->in[0];
-    parser->midi.param2  = parser->in[1];
+    parser->midi.param1  = (datalen > 0 ? parser->in[0] : 0);
+    parser->midi.param2  = (datalen > 1 ? parser->in[1] : 0);
 
-    parser->in         += 2;
-    parser->size       -= 2;
-    parser->track.size -= 2;
+    parser->in         += datalen;
+    parser->size       -= datalen;
+    parser->track.size -= datalen;
   } else {
     // Full event with its own status.
     if (parser->size < 3)
