@@ -112,6 +112,7 @@ midi_parse_track(struct midi_parser *parser)
   parser->state       = MIDI_PARSER_TRACK;
   parser->in         += 8;
   parser->size       -= 8;
+  parser->buffered_status = 0;
   return MIDI_PARSER_TRACK;
 }
 
@@ -153,17 +154,36 @@ midi_parse_vtime(struct midi_parser *parser)
 static inline enum midi_parser_status
 midi_parse_channel_event(struct midi_parser *parser)
 {
-  if (parser->size < 3)
+  if (parser->size < 2)
     return MIDI_PARSER_EOB;
 
-  parser->midi.status  = parser->in[0] >> 4;
-  parser->midi.channel = parser->in[0] & 0xf;
-  parser->midi.param1  = parser->in[1];
-  parser->midi.param2  = parser->in[2];
+  if ((parser->in[0] & 0x80) == 0) {
+    // Shortened event with running status.
+    if (parser->buffered_status == 0)
+      return MIDI_PARSER_EOB;
+    parser->midi.status  = parser->buffered_status;
+    parser->midi.channel = parser->buffered_channel;
+    parser->midi.param1  = parser->in[0];
+    parser->midi.param2  = parser->in[1];
 
-  parser->in         += 3;
-  parser->size       -= 3;
-  parser->track.size -= 3;
+    parser->in         += 2;
+    parser->size       -= 2;
+    parser->track.size -= 2;
+  } else {
+    // Full event with itsown status.
+    if (parser->size < 3)
+      return MIDI_PARSER_EOB;
+    parser->midi.status  = parser->in[0] >> 4;
+    parser->midi.channel = parser->in[0] & 0xf;
+    parser->midi.param1  = parser->in[1];
+    parser->midi.param2  = parser->in[2];
+    parser->buffered_status  = parser->midi.status;
+    parser->buffered_channel = parser->midi.channel;
+
+    parser->in         += 3;
+    parser->size       -= 3;
+    parser->track.size -= 3;
+  }
 
   return MIDI_PARSER_TRACK_MIDI;
 }
@@ -206,10 +226,15 @@ midi_parse_event(struct midi_parser *parser)
   if (parser->size <= 0 || parser->track.size <= 0)
     return MIDI_PARSER_ERROR;
 
-  if (parser->in[0] < 0xf0)
+  if (parser->in[0] < 0xf0) {
     return midi_parse_channel_event(parser);
-  if (parser->in[0] == 0xff)
-    return midi_parse_meta_event(parser);
+  } else {
+    // System category events (>=0xf0) cancel running status:
+    parser->buffered_status = 0;
+
+    if (parser->in[0] == 0xff)
+      return midi_parse_meta_event(parser);
+  }
   return MIDI_PARSER_ERROR;
 }
 
