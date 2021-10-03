@@ -15,6 +15,16 @@ midi_file_format_name(int fmt)
   }
 }
 
+int
+midi_event_datalen(int status)
+{
+  switch (status) {
+  case MIDI_STATUS_PGM_CHANGE: return 1;
+  case MIDI_STATUS_CHANNEL_AT: return 1;
+  default: return 2;
+  }
+}
+
 const char *
 midi_status_name(int status)
 {
@@ -170,19 +180,22 @@ midi_parse_channel_event(struct midi_parser *parser)
     parser->size       -= 2;
     parser->track.size -= 2;
   } else {
-    // Full event with itsown status.
+    // Full event with its own status.
     if (parser->size < 3)
       return MIDI_PARSER_EOB;
-    parser->midi.status  = parser->in[0] >> 4;
+    parser->midi.status  = (parser->in[0] >> 4) & 0xf;
+    int datalen = midi_event_datalen(parser->midi.status);
+    if (parser->size < 1 + datalen)
+      return MIDI_PARSER_EOB;
     parser->midi.channel = parser->in[0] & 0xf;
-    parser->midi.param1  = parser->in[1];
-    parser->midi.param2  = parser->in[2];
+    parser->midi.param1  = (datalen > 0 ? parser->in[1] : 0);
+    parser->midi.param2  = (datalen > 1 ? parser->in[2] : 0);
     parser->buffered_status  = parser->midi.status;
     parser->buffered_channel = parser->midi.channel;
 
-    parser->in         += 3;
-    parser->size       -= 3;
-    parser->track.size -= 3;
+    parser->in         += 1 + datalen;
+    parser->size       -= 1 + datalen;
+    parser->track.size -= 1 + datalen;
   }
 
   return MIDI_PARSER_TRACK_MIDI;
@@ -191,7 +204,7 @@ midi_parse_channel_event(struct midi_parser *parser)
 static inline enum midi_parser_status
 midi_parse_meta_event(struct midi_parser *parser)
 {
-  assert(parser->in[0] == 0xff);
+  assert(parser->size == 0 || parser->in[0] == 0xff);
 
   if (parser->size < 2)
     return MIDI_PARSER_ERROR;
@@ -200,11 +213,11 @@ midi_parse_meta_event(struct midi_parser *parser)
   int32_t offset   = 2;
   parser->meta.length = midi_parse_variable_length(parser, &offset);
 
-  // length should never be negative or more than the remaining size
+  // Length should never be negative or more than the remaining size
   if (parser->meta.length < 0 || parser->meta.length > parser->size)
     return MIDI_PARSER_ERROR;
 
-  // check buffer size
+  // Check buffer size
   if (parser->size < offset || parser->size - offset < parser->meta.length)
     return MIDI_PARSER_ERROR;
 
