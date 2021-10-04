@@ -112,7 +112,7 @@ struct midi_parser
 {
   enum midi_parser_status state;
   enum midi_status buffered_status;
-  int buffered_channel;
+  unsigned buffered_channel;
 
   /* input buffer */
   const uint8_t *in;
