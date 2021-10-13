@@ -14,7 +14,7 @@ static void usage(const char *prog)
 
 static void parse_and_dump(struct midi_parser *parser)
 {
-  enum midi_status status;
+  enum midi_parser_status status;
 
   while (1) {
     status = midi_parse(parser);
