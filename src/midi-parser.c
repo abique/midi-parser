@@ -224,6 +224,7 @@ midi_parse_meta_event(struct midi_parser *parser)
   if (parser->size < offset || parser->size - offset < parser->meta.length)
     return MIDI_PARSER_ERROR;
 
+  parser->meta.bytes = parser->in + offset;
   offset += parser->meta.length;
   parser->in += offset;
   parser->size -= offset;
@@ -234,6 +235,7 @@ midi_parse_meta_event(struct midi_parser *parser)
 static inline enum midi_parser_status
 midi_parse_event(struct midi_parser *parser)
 {
+  parser->meta.bytes = NULL;
   if (!midi_parse_vtime(parser))
     return MIDI_PARSER_EOB;
 
