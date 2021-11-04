@@ -204,6 +204,31 @@ midi_parse_channel_event(struct midi_parser *parser)
   return MIDI_PARSER_TRACK_MIDI;
 }
 
+static bool
+midi_parse_past_sysex(struct midi_parser *parser)
+{
+  assert(parser->size == 0 || parser->in[0] == 0xf0);
+
+  if (parser->size < 2)
+    return false;
+
+  while (1) {
+    parser->in++;
+    parser->size--;
+    parser->track.size--;
+
+    if (parser->size == 0)
+      return false;
+
+    if (parser->in[0] == 0xF7) {
+      parser->in++;
+      parser->size--;
+      parser->track.size--;
+      return true;
+    }
+  }
+}
+
 static inline enum midi_parser_status
 midi_parse_meta_event(struct midi_parser *parser)
 {
@@ -244,11 +269,22 @@ midi_parse_event(struct midi_parser *parser)
   if (parser->size <= 0 || parser->track.size <= 0)
     return MIDI_PARSER_ERROR;
 
+  // Skip past any SysEx events (we should return them at some point,
+  // but this is not currently implemented):
+  while (parser->in[0] == 0xf0) {
+    parser->buffered_status = 0;  // (cancels running status)
+
+    if (!midi_parse_past_sysex(parser) || parser->size == 0)
+      return MIDI_PARSER_EOB;
+    if (!midi_parse_vtime(parser) || parser->size == 0)
+      return MIDI_PARSER_EOB;
+  }
+
+  // Handling of regular non-SysEx events:
   if (parser->in[0] < 0xf0) {
     return midi_parse_channel_event(parser);
   } else {
-    // System category events (>=0xf0) cancel running status:
-    parser->buffered_status = 0;
+    parser->buffered_status = 0;  // (cancels running status)
 
     if (parser->in[0] == 0xff)
       return midi_parse_meta_event(parser);
