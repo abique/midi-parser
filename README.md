@@ -1,3 +1,4 @@
+
 # midi-parser
 
 This repository contains a simple midi parser
@@ -13,7 +14,9 @@ due to its simple code and no use of file I/O.
 
 ## Use in your project
 
-To build midi-parser as part of your program,
+You can build midi-parser via `cmake . && make`.
+
+Alternatively, to build midi-parser as part of your program,
 add `src/midi-parser.c` to your project's
 object files, and the `include/` folder to your include path.
 (For Visual Studio, you'll find the required fields in your
@@ -28,10 +31,8 @@ $ gcc -o myprogram my_own_code.c path-to-midi-parser/src/midi-parser.c -Ipath-to
 
 ## Demo
 
-To build the `example/mini-dump.c` demo with gcc, do this:
+Running `cmake . && make` will also build the `example/mini-dump.c` demo
+as `midi-dump` executable.
 
-```
-$ gcc -o demo example/midi-dump.c src/midi-parser.c -Iinclude
-```
+You can then use `./midi-dump mymidifile.mid` on any midi file to test.
 
-You can then use `./demo mymidifile.mid` on any midi file to test.

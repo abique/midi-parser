@@ -6,6 +6,6 @@ include_directories(include)
 add_library(midi-parser src/midi-parser.c)
 set_property(TARGET midi-parser PROPERTY C_STANDARD 99)
 
-add_executable(midi-dump src/midi-dump.c)
+add_executable(midi-dump example/midi-dump.c)
 set_property(TARGET midi-dump PROPERTY C_STANDARD 99)
 target_link_libraries(midi-dump midi-parser)
