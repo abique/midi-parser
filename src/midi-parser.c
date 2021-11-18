@@ -204,36 +204,41 @@ midi_parse_channel_event(struct midi_parser *parser)
   return MIDI_PARSER_TRACK_MIDI;
 }
 
-static bool
-midi_parse_past_sysex(struct midi_parser *parser)
+static int
+midi_parse_sysex_event(struct midi_parser *parser)
 {
   assert(parser->size == 0 || parser->in[0] == 0xf0);
 
   if (parser->size < 2)
-    return false;
+    return MIDI_PARSER_ERROR;
 
-  while (1) {
-    parser->in++;
-    parser->size--;
-    parser->track.size--;
+  int offset = 1;
+  parser->sysex.length = midi_parse_variable_length(parser, &offset);
+  if (offset < 1 || offset > parser->size)
+    return MIDI_PARSER_ERROR;
+  parser->in += offset;
+  parser->size -= offset;
+  parser->track.size -= offset;
 
-    if (parser->size == 0)
-      return false;
+  // Length should be positive and not more than the remaining size
+  if (parser->sysex.length <= 0 || parser->sysex.length > parser->size)
+    return MIDI_PARSER_ERROR;
 
-    if (parser->in[0] == 0xF7) {
-      parser->in++;
-      parser->size--;
-      parser->track.size--;
-      return true;
-    }
-  }
+  parser->sysex.bytes = parser->in;
+  parser->in += parser->sysex.length;
+  parser->size -= parser->sysex.length;
+  parser->track.size -= parser->sysex.length;
+  // Don't count the 0xF7 ending byte as data, if given:
+  if (parser->sysex.bytes[parser->sysex.length - 1] == 0xF7)
+    parser->sysex.length--;
+
+  return MIDI_PARSER_TRACK_SYSEX;
 }
 
 static inline enum midi_parser_status
 midi_parse_meta_event(struct midi_parser *parser)
 {
   assert(parser->size == 0 || parser->in[0] == 0xff);
-
   if (parser->size < 2)
     return MIDI_PARSER_ERROR;
 
@@ -269,22 +274,13 @@ midi_parse_event(struct midi_parser *parser)
   if (parser->size <= 0 || parser->track.size <= 0)
     return MIDI_PARSER_ERROR;
 
-  // Skip past any SysEx events (we should return them at some point,
-  // but this is not currently implemented):
-  while (parser->in[0] == 0xf0) {
-    parser->buffered_status = 0;  // (cancels running status)
-
-    if (!midi_parse_past_sysex(parser) || parser->size == 0)
-      return MIDI_PARSER_EOB;
-    if (!midi_parse_vtime(parser) || parser->size == 0)
-      return MIDI_PARSER_EOB;
-  }
-
-  // Handling of regular non-SysEx events:
-  if (parser->in[0] < 0xf0) {
+  if (parser->in[0] < 0xf0) {  // Regular channel events:
     return midi_parse_channel_event(parser);
-  } else {
+  } else {  // Special event types:
     parser->buffered_status = 0;  // (cancels running status)
+
+    if (parser->in[0] == 0xf0)
+      return midi_parse_sysex_event(parser);
 
     if (parser->in[0] == 0xff)
       return midi_parse_meta_event(parser);
