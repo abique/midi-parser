@@ -1,9 +1,31 @@
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <errno.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <memoryapi.h>
+
+static void win_err_helper(const char *func, const char *path)
+{
+  const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+    FORMAT_MESSAGE_IGNORE_INSERTS;
+  const DWORD dw   = GetLastError();
+  const DWORD lang = MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT);
+
+  LPVOID lpMsgBuf;
+  FormatMessage(flags, NULL, dw, lang, (LPTSTR)&lpMsgBuf, 0, NULL);
+
+  printf("%s(%s): %s\n", func, path, (char *)lpMsgBuf);
+  LocalFree(lpMsgBuf);
+}
+
+#else
+#include <sys/mman.h>
+#endif
 
 #include <midi-parser.h>
 
@@ -87,12 +109,43 @@ static int parse_file(const char *path)
     return 1;
   }
 
+#ifdef _WIN32
+
+  HANDLE fhandle = (HANDLE)_get_osfhandle(fd);
+
+  if (st.st_size == 0) {
+    printf("file is empty\n");
+    close(fd);
+    return 1;
+  }
+
+  HANDLE hMapFile = CreateFileMapping(fhandle, NULL, PAGE_READONLY, 0, 0, NULL);
+
+  if (!hMapFile) {
+    win_err_helper("CreateFileMapping", path);
+    close(fd);
+    return 1;
+  }
+
+  void *mem = MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, 0);
+
+  if (!mem) {
+    win_err_helper("MapViewOfFile", path);
+    CloseHandle(hMapFile);
+    close(fd);
+    return 1;
+  }
+
+#else
+
   void *mem = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
   if (mem == MAP_FAILED) {
     printf("mmap(%s): %m\n", path);
     close(fd);
     return 1;
   }
+
+#endif
 
   struct midi_parser parser;
   parser.state = MIDI_PARSER_INIT;
@@ -101,7 +154,12 @@ static int parse_file(const char *path)
 
   parse_and_dump(&parser);
 
+#ifdef _WIN32
+  UnmapViewOfFile(mem);
+  CloseHandle(hMapFile);
+#else
   munmap(mem, st.st_size);
+#endif
   close(fd);
   return 0;
 }
