@@ -51,7 +51,7 @@ midi_meta_name(int type)
   case MIDI_META_TRACK_NAME: return "Track Name";
   case MIDI_META_INSTRUMENT_NAME: return "Instrument Name";
   case MIDI_META_LYRICS: return "Lyrics";
-  case MIDI_META_MAKER: return "Maker";
+  case MIDI_META_MARKER: return "Marker";
   case MIDI_META_CUE_POINT: return "Cue Point";
   case MIDI_META_CHANNEL_PREFIX: return "Channel Prefix";
   case MIDI_META_END_OF_TRACK: return "End of Track";
